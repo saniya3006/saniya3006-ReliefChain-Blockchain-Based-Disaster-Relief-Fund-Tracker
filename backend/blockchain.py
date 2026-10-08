@@ -9,6 +9,7 @@ import json
 import os
 import re
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -55,6 +56,9 @@ class Blockchain:
         self._log_lock = threading.Lock()
         self._log_cache = {}
         self._log_chunk = int(os.getenv("LOG_CHUNK_SIZE", "50000"))
+        # Remote RPC calls are slow (~0.25 s each), so recent results are reused briefly.
+        self._ready_until = 0.0  # connection + contract check is trusted until then
+        self._tx_count = 0  # bumped after every transaction we send, so cached logs refresh
 
     # ------------------------------------------------------------------
     # Connection helpers
@@ -73,9 +77,13 @@ f"Contract not deployed ({CONTRACT_FILE.name} missing). Run: npx hardhat run scr
             self._contract_mtime = mtime
             with self._log_lock:
                 self._log_cache = {}
+            self._ready_until = 0.0
 
     def ready(self):
         """Make sure the blockchain is reachable and the contract exists."""
+        self._load_contract()  # cheap: only re-reads the file when it changed
+        if time.time() < self._ready_until:
+            return self.contract
         try:
             connected = self.w3.is_connected()
         except Exception:
@@ -91,6 +99,7 @@ f"Contract not deployed ({CONTRACT_FILE.name} missing). Run: npx hardhat run scr
                 "Run: npx hardhat run scripts/deploy.js --network <network>",
                 503,
             )
+        self._ready_until = time.time() + 30
         return self.contract
 
     def health(self):
@@ -134,6 +143,7 @@ f"Contract not deployed ({CONTRACT_FILE.name} missing). Run: npx hardhat run scr
             signed = self.account.sign_transaction(tx)
             tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)  # testnet blocks ~12 s
+            self._tx_count += 1  # make the new event visible on the next read
         if receipt.status != 1:
             raise ChainError("Transaction failed on the blockchain")
         return receipt
@@ -188,7 +198,10 @@ f"Contract not deployed ({CONTRACT_FILE.name} missing). Run: npx hardhat run scr
     def _logs(self, event):
         """All logs of one event type since deployment, scanned in chunks and cached."""
         with self._log_lock:
-            entry = self._log_cache.setdefault(event.event_name, {"to": self.deploy_block - 1, "logs": []})
+            entry = self._log_cache.setdefault(event.event_name, {"to": self.deploy_block - 1, "logs": [], "until": 0.0, "tx": -1})
+            # reuse a scan younger than 5 s, unless we have sent a transaction since
+            if time.time() < entry["until"] and entry["tx"] == self._tx_count:
+                return list(entry["logs"])
             latest = self.w3.eth.block_number
             start = entry["to"] + 1
             while start <= latest:
@@ -203,6 +216,8 @@ f"Contract not deployed ({CONTRACT_FILE.name} missing). Run: npx hardhat run scr
                 entry["logs"].extend(found)
                 entry["to"] = end
                 start = end + 1
+            entry["until"] = time.time() + 5
+            entry["tx"] = self._tx_count
             return list(entry["logs"])
 
     def _event_tx_map(self, event, campaign_id, index_field):
@@ -248,10 +263,17 @@ f"Contract not deployed ({CONTRACT_FILE.name} missing). Run: npx hardhat run scr
             )
         return result
 
-    def recent_transactions(self, limit=20):
+    def allocation_totals(self):
+        """Total allocated per category across all campaigns, from the event logs."""
+        totals = {cat: 0 for cat in CATEGORIES}
+        for log in self._logs(self.ready().events.FundsAllocated):
+            totals[CATEGORIES[log.args.category]] += log.args.amount
+        return totals
+
+    def recent_transactions(self, limit=20, campaigns=None):
         """Latest donation + allocation events across all campaigns."""
         c = self.ready()
-        names = {x["id"]: x["name"] for x in self.get_all_campaigns()}
+        names = {x["id"]: x["name"] for x in (campaigns or self.get_all_campaigns())}
         items = []
         for log in self._logs(c.events.DonationReceived):
             items.append(

@@ -141,11 +141,8 @@ def donate(campaign_id: int, body: DonationIn):
 @app.get("/api/stats")
 def stats():
     campaigns = chain.get_all_campaigns()
-    by_category = {c: 0 for c in CATEGORIES}
-    for c in campaigns:
-        for a in chain.get_allocations(c["id"]):
-            by_category[a["category"]] += a["amount"]
-    recent, tx_count = chain.recent_transactions(limit=15)
+    by_category = chain.allocation_totals()
+    recent, tx_count = chain.recent_transactions(limit=15, campaigns=campaigns)
     total_raised = sum(c["raisedAmount"] for c in campaigns)
     total_allocated = sum(c["allocatedAmount"] for c in campaigns)
     return {
