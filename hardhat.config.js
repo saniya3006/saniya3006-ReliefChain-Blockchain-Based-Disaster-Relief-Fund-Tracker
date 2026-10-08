@@ -1,4 +1,7 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("dotenv").config(); // reads .env in the project root (never committed)
+
+const { SEPOLIA_RPC_URL, SEPOLIA_PRIVATE_KEY } = process.env;
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -12,10 +15,11 @@ module.exports = {
       url: "http://127.0.0.1:8545",
       chainId: 31337,
     },
-    // Optional: uncomment to deploy to Sepolia testnet later (see README)
-    // sepolia: {
-    //   url: process.env.SEPOLIA_RPC_URL,
-    //   accounts: [process.env.PRIVATE_KEY],
-    // },
+    // Public Ethereum test network used for hosting (see HOSTING.md)
+    sepolia: {
+      url: SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
+      chainId: 11155111,
+      accounts: SEPOLIA_PRIVATE_KEY ? [SEPOLIA_PRIVATE_KEY] : [],
+    },
   },
 };

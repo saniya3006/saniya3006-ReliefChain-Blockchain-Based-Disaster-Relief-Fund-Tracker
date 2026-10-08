@@ -23,8 +23,8 @@ export default function Footer() {
         <div className="text-sm text-slate-500">
           <p className="font-semibold text-slate-900">Important</p>
           <p className="mt-3">
-            College mini-project. All campaigns, donors and amounts are <b>fictional demo data</b> on a local Hardhat
-            blockchain. No real money is involved.
+            College mini-project. All campaigns, donors and amounts are <b>fictional demo data</b> on a test
+            blockchain (local Hardhat or the Sepolia testnet). No real money is involved.
           </p>
           <p className="mt-2">
             Blockchain provides a transparent record of donations and allocations. It does not by itself prove that a
@@ -33,7 +33,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="border-t border-slate-100 py-4 text-center text-xs text-slate-400">
-        ReliefChain · React + FastAPI + Solidity (Hardhat)
+        ReliefChain · React + FastAPI + Solidity (Ethereum)
       </div>
     </footer>
   );

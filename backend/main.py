@@ -17,9 +17,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
-from blockchain import CATEGORIES, Blockchain, ChainError
+load_dotenv()  # before importing blockchain.py, which reads env vars at import time
 
-load_dotenv()
+from blockchain import CATEGORIES, Blockchain, ChainError  # noqa: E402
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 MAX_DONATION = 10_000_000  # ₹1 crore sanity limit per donation (demo)
@@ -27,7 +27,9 @@ MAX_DONATION = 10_000_000  # ₹1 crore sanity limit per donation (demo)
 app = FastAPI(title="ReliefChain API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5180", "http://127.0.0.1:5180"],
+    # Local dev origins + the hosted frontend URL(s) from FRONTEND_ORIGINS (comma-separated)
+    allow_origins=["http://localhost:5180", "http://127.0.0.1:5180"]
+    + [o.strip().rstrip("/") for o in os.getenv("FRONTEND_ORIGINS", "").split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,0 +1,22 @@
+# Render blueprint for the ReliefChain FastAPI backend (see HOSTING.md)
+services:
+  - type: web
+    name: reliefchain-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: RPC_URL
+        value: https://ethereum-sepolia-rpc.publicnode.com
+      - key: CONTRACT_FILE
+        value: contract/ReliefChain.sepolia.json
+      - key: PRIVATE_KEY      # test wallet that deployed the contract (set in the Render dashboard)
+        sync: false
+      - key: ADMIN_KEY        # admin panel password (set in the Render dashboard)
+        sync: false
+      - key: FRONTEND_ORIGINS # your Vercel URL, e.g. https://reliefchain.vercel.app
+        sync: false

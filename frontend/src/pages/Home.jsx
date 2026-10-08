@@ -68,7 +68,7 @@ export default function Home() {
               </div>
             ))}
             <p className="text-xs text-slate-500 sm:col-span-2">
-              Live values read from the ReliefChain smart contract on the local Hardhat blockchain (demo data).
+              Live values read from the ReliefChain smart contract on a test blockchain (demo data, no real money).
             </p>
           </div>
         </div>

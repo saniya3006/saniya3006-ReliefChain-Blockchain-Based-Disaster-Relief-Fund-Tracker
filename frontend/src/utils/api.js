@@ -1,7 +1,8 @@
 // Small fetch wrapper for the ReliefChain FastAPI backend.
 // All blockchain data shown in the UI comes from these calls.
 
-const BASE = "/api";
+// Local dev: "/api" (Vite proxies it to the backend). Hosted: set VITE_API_URL to the backend URL.
+const BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "") + "/api";
 
 async function request(path, { method = "GET", body, adminKey } = {}) {
   const headers = {};

@@ -16,7 +16,14 @@ from web3 import Web3
 from web3.exceptions import ContractLogicError, TransactionNotFound
 from web3.logs import DISCARD
 
-CONTRACT_FILE = Path(__file__).parent / "contract" / "ReliefChain.json"
+# Which deployment to use: contract/ReliefChain.json (local Hardhat, default) or
+# e.g. contract/ReliefChain.sepolia.json when hosted. Both are written by scripts/deploy.js.
+CONTRACT_FILE = Path(__file__).parent / os.getenv("CONTRACT_FILE", "contract/ReliefChain.json")
+
+NETWORKS = {
+    31337: {"name": "Hardhat Local", "explorer": None},
+    11155111: {"name": "Sepolia Testnet", "explorer": "https://sepolia.etherscan.io"},
+}
 
 STATUS = ["ACTIVE", "COMPLETED", "CLOSED"]
 CATEGORIES = ["Food", "Medicine", "Shelter", "Transportation", "Other"]
@@ -43,6 +50,11 @@ class Blockchain:
         self._contract_mtime = None
         self.contract = None
         self.deploy_block = 0
+        # Event-log cache: public RPC providers limit how many blocks one
+        # eth_getLogs call may cover, so logs are scanned in chunks and kept.
+        self._log_lock = threading.Lock()
+        self._log_cache = {}
+        self._log_chunk = int(os.getenv("LOG_CHUNK_SIZE", "50000"))
 
     # ------------------------------------------------------------------
     # Connection helpers
@@ -51,7 +63,7 @@ class Blockchain:
         """(Re)load address + ABI written by scripts/deploy.js."""
         if not CONTRACT_FILE.exists():
             raise ChainError(
-                "Contract not deployed. Run: npx hardhat run scripts/deploy.js --network localhost", 503
+f"Contract not deployed ({CONTRACT_FILE.name} missing). Run: npx hardhat run scripts/deploy.js --network <network>", 503
             )
         mtime = CONTRACT_FILE.stat().st_mtime
         if mtime != self._contract_mtime:
@@ -59,6 +71,8 @@ class Blockchain:
             self.contract = self.w3.eth.contract(address=info["address"], abi=info["abi"])
             self.deploy_block = info.get("deployBlock", 0)
             self._contract_mtime = mtime
+            with self._log_lock:
+                self._log_cache = {}
 
     def ready(self):
         """Make sure the blockchain is reachable and the contract exists."""
@@ -68,13 +82,13 @@ class Blockchain:
             connected = False
         if not connected:
             raise ChainError(
-                f"Cannot reach the blockchain at {self.rpc_url}. Is `npx hardhat node` running?", 503
+                "Cannot reach the blockchain node. Is it running / is RPC_URL correct?", 503
             )
         self._load_contract()
         if self.w3.eth.get_code(self.contract.address) in (b"", b"\x00"):
             raise ChainError(
-                "Contract not found on this blockchain (node was probably restarted). "
-                "Run: npx hardhat run scripts/deploy.js --network localhost",
+                "Contract not found on this blockchain (a local node was probably restarted). "
+                "Run: npx hardhat run scripts/deploy.js --network <network>",
                 503,
             )
         return self.contract
@@ -82,10 +96,13 @@ class Blockchain:
     def health(self):
         c = self.ready()
         owner = c.functions.owner().call()
+        chain_id = self.w3.eth.chain_id
+        net = NETWORKS.get(chain_id, {"name": f"Chain {chain_id}", "explorer": None})
         return {
             "connected": True,
-            "rpcUrl": self.rpc_url,
-            "chainId": self.w3.eth.chain_id,
+            "chainId": chain_id,
+            "network": net["name"],
+            "explorer": os.getenv("EXPLORER_URL") or net["explorer"],
             "blockNumber": self.w3.eth.block_number,
             "contractAddress": c.address,
             "backendWallet": self.account.address,
@@ -116,7 +133,7 @@ class Blockchain:
                 raise ChainError(_revert_reason(e))
             signed = self.account.sign_transaction(tx)
             tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
-            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=180)  # testnet blocks ~12 s
         if receipt.status != 1:
             raise ChainError("Transaction failed on the blockchain")
         return receipt
@@ -168,9 +185,29 @@ class Blockchain:
         except ContractLogicError as e:
             raise ChainError(_revert_reason(e), 404)
 
+    def _logs(self, event):
+        """All logs of one event type since deployment, scanned in chunks and cached."""
+        with self._log_lock:
+            entry = self._log_cache.setdefault(event.event_name, {"to": self.deploy_block - 1, "logs": []})
+            latest = self.w3.eth.block_number
+            start = entry["to"] + 1
+            while start <= latest:
+                end = min(start + self._log_chunk - 1, latest)
+                try:
+                    found = event.get_logs(from_block=start, to_block=end)
+                except Exception as e:
+                    if self._log_chunk > 10:  # provider rejected the range: retry with a smaller one
+                        self._log_chunk = max(10, self._log_chunk // 5)
+                        continue
+                    raise ChainError(f"Could not read blockchain event logs: {e}", 503)
+                entry["logs"].extend(found)
+                entry["to"] = end
+                start = end + 1
+            return list(entry["logs"])
+
     def _event_tx_map(self, event, campaign_id, index_field):
         """index -> (txHash, blockNumber), read from the contract's event logs."""
-        logs = event.get_logs(from_block=self.deploy_block, argument_filters={"campaignId": campaign_id})
+        logs = [l for l in self._logs(event) if l.args.campaignId == campaign_id]
         return {
             log.args[index_field]: {"txHash": log.transactionHash.to_0x_hex(), "blockNumber": log.blockNumber}
             for log in logs
@@ -216,7 +253,7 @@ class Blockchain:
         c = self.ready()
         names = {x["id"]: x["name"] for x in self.get_all_campaigns()}
         items = []
-        for log in c.events.DonationReceived.get_logs(from_block=self.deploy_block):
+        for log in self._logs(c.events.DonationReceived):
             items.append(
                 {
                     "type": "Donation",
@@ -229,7 +266,7 @@ class Blockchain:
                     "blockNumber": log.blockNumber,
                 }
             )
-        for log in c.events.FundsAllocated.get_logs(from_block=self.deploy_block):
+        for log in self._logs(c.events.FundsAllocated):
             items.append(
                 {
                     "type": "Allocation",

@@ -5,6 +5,7 @@ import { api } from "../utils/api";
 import { categoryInfo } from "../utils/constants";
 import { formatDateTime, formatINR } from "../utils/format";
 import TxHash from "./TxHash";
+import { explorerTxUrl, useChainHealth } from "../utils/useChainHealth";
 
 /** Looks a transaction hash up directly on the blockchain (via the backend) and decodes it. */
 export default function TransactionVerification() {
@@ -95,6 +96,8 @@ function Row({ label, children }) {
 
 function VerificationResult({ r }) {
   const confirmed = r.status === "Confirmed";
+  const { health } = useChainHealth();
+  const explorer = explorerTxUrl(health, r.txHash);
   return (
     <div className="card overflow-hidden">
       <div className={`flex items-center gap-3 px-5 py-4 ${confirmed ? "bg-emerald-50" : "bg-rose-50"}`}>
@@ -184,6 +187,13 @@ function VerificationResult({ r }) {
           <Row label="Sent by (recording wallet)"><code className="break-all font-mono text-xs">{r.from}</code></Row>
           <Row label="Sent to (contract)"><code className="break-all font-mono text-xs">{r.to || "-"}</code></Row>
           <Row label="Gas used"><span className="font-mono">{r.gasUsed.toLocaleString()}</span></Row>
+          {explorer && (
+            <Row label="Public block explorer">
+              <a href={explorer} target="_blank" rel="noreferrer" className="font-medium text-sky-700 hover:underline">
+                View this transaction on Etherscan
+              </a>
+            </Row>
+          )}
         </dl>
       </div>
     </div>

@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Copy, ShieldCheck } from "lucide-react";
+import { Check, Copy, ExternalLink, ShieldCheck } from "lucide-react";
 import { shortHash } from "../utils/format";
+import { explorerTxUrl, useChainHealth } from "../utils/useChainHealth";
 
 /** Shows a transaction hash with copy + "verify" actions. */
 export default function TxHash({ hash, full = false, showVerify = true }) {
   const [copied, setCopied] = useState(false);
+  const { health } = useChainHealth();
+  const explorer = explorerTxUrl(health, hash);
   if (!hash) return <span className="text-xs text-slate-400">—</span>;
 
   const copy = async () => {
@@ -39,6 +42,17 @@ export default function TxHash({ hash, full = false, showVerify = true }) {
         >
           <ShieldCheck className="h-3.5 w-3.5" /> Verify
         </Link>
+      )}
+      {explorer && (
+        <a
+          href={explorer}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-sky-700 hover:bg-sky-50"
+          title="Open on Etherscan"
+        >
+          <ExternalLink className="h-3.5 w-3.5" /> Etherscan
+        </a>
       )}
     </span>
   );

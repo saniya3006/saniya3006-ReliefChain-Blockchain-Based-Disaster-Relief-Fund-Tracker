@@ -3,8 +3,10 @@
  *
  *   npx hardhat run scripts/deploy.js --network localhost
  *
- * Writes backend/contract/ReliefChain.json (address + ABI) so the FastAPI
- * backend knows which contract to talk to.
+ * Writes backend/contract/ReliefChain.json (local) or ReliefChain.<network>.json
+ * (address + ABI) so the FastAPI backend knows which contract to talk to.
+ *
+ *   npx hardhat run scripts/deploy.js --network sepolia     (hosting; see HOSTING.md)
  *
  * NOTE: all campaigns, donor names and amounts created here are FICTIONAL
  * demonstration data. Every one of them is still a real blockchain
@@ -104,8 +106,11 @@ async function main() {
   const artifact = await hre.artifacts.readArtifact("ReliefChain");
   const outDir = path.join(__dirname, "..", "backend", "contract");
   fs.mkdirSync(outDir, { recursive: true });
+  // localhost -> ReliefChain.json (git-ignored), other networks -> ReliefChain.<network>.json (committed for hosting)
+  const local = network.name === "localhost" || network.name === "hardhat";
+  const outFile = local ? "ReliefChain.json" : `ReliefChain.${network.name}.json`;
   fs.writeFileSync(
-    path.join(outDir, "ReliefChain.json"),
+    path.join(outDir, outFile),
     JSON.stringify(
       {
         address,
@@ -118,7 +123,7 @@ async function main() {
       2
     )
   );
-  console.log(`Saved contract info to backend/contract/ReliefChain.json`);
+  console.log(`Saved contract info to backend/contract/${outFile}`);
 
   if (process.env.SKIP_SEED) return;
 

@@ -16,7 +16,7 @@ export function ChainPill() {
       <span className={`h-2 w-2 rounded-full ${ok ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
       {ok ? (
         <>
-          Hardhat Local · <span className="font-mono">#{health.blockNumber}</span>
+          {health.network} · <span className="font-mono">#{health.blockNumber}</span>
         </>
       ) : error ? (
         "Blockchain offline"
@@ -42,7 +42,7 @@ export default function BlockchainStatus() {
   if (!health) return <div className="card h-[132px] animate-pulse bg-slate-50" />;
 
   const rows = [
-    { icon: Boxes, label: "Network", value: `Hardhat Local (chain ${health.chainId}) · block #${health.blockNumber}` },
+    { icon: Boxes, label: "Network", value: `${health.network} (chain ${health.chainId}) · block #${health.blockNumber}` },
     { icon: FileCode2, label: "Smart contract", value: health.contractAddress, mono: true },
     { icon: Wallet, label: "Recording wallet (owner)", value: health.backendWallet, mono: true },
   ];

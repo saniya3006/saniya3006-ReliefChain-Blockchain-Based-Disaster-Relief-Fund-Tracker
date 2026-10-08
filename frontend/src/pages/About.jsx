@@ -7,7 +7,7 @@ const FLOW = [
   { icon: Monitor, title: "React website", text: "Vite + Tailwind UI, calls the REST API" },
   { icon: Server, title: "FastAPI backend", text: "Validates input, signs transactions with the owner wallet (web3.py)" },
   { icon: FileCode2, title: "ReliefChain smart contract", text: "Solidity rules: onlyOwner, valid IDs, no over-allocation" },
-  { icon: Boxes, title: "Blockchain (Hardhat local)", text: "Permanent, tamper-evident record + transaction hashes" },
+  { icon: Boxes, title: "Ethereum blockchain (Hardhat local or Sepolia testnet)", text: "Permanent, tamper-evident record + transaction hashes" },
 ];
 
 const CAN = [

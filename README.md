@@ -274,14 +274,9 @@ The frontend was also tested with scripted clicks in a real Chrome browser: dona
 
 > Integration tests write test campaigns to the local chain. Re-run `deploy.js` afterwards for clean demo data.
 
-## 15. Deploying to Sepolia (optional, later)
+## 15. Hosting online (Sepolia + Render + Vercel)
 
-The project is designed for the local network. To try a public testnet:
-1. Get a Sepolia RPC URL (Alchemy/Infura) and test ETH from a faucet for a **new, empty** wallet.
-2. In `hardhat.config.js`, uncomment the `sepolia` network and set `SEPOLIA_RPC_URL` and `PRIVATE_KEY` environment variables.
-3. `npx hardhat run scripts/deploy.js --network sepolia`
-4. In `backend/.env`, set `RPC_URL` to the Sepolia URL and `PRIVATE_KEY` to that wallet's key.
-5. Transactions then take ~12 s and appear on https://sepolia.etherscan.io.
+The project can be hosted for free, with the contract on Ethereum's **Sepolia testnet** (every transaction visible on sepolia.etherscan.io), the backend on **Render** and the website on **Vercel**. Follow the step-by-step guide in **[HOSTING.md](HOSTING.md)**.
 
 ## 16. Screenshots
 
